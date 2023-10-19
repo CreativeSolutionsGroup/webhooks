@@ -1,28 +1,5 @@
-import { prisma } from "@/lib/db";
-
-const getColumn = (name: string, row: Row, columnList: ColumnsList) => {
-  const columnValue = getRawColumn(name, row, columnList);
-
-  if (columnValue) {
-    if (columnValue.displayValue) {
-      return columnValue.displayValue;
-    } else if (columnValue.value) {
-      return columnValue.value;
-    } else {
-      return "<span style='color:red'>N/A</span>";
-    }
-  }
-
-  return "";
-};
-
-const getRawColumn = (name: string, row: Row, columnList: ColumnsList) => {
-  const column = columnList.data.find((v) => v.title === name);
-  if (column) {
-    return row.cells.find((v) => v.columnId === column.id);
-  }
-  return undefined;
-};
+import { checkAuth, createCard } from "@/lib/api/basecamp";
+import { getColumn, getRawColumn } from "@/lib/api/smartsheet";
 
 export async function POST(request: Request) {
   // The challenge is sent every 50 requests or so to make sure that the webhook is still alive
@@ -37,56 +14,10 @@ export async function POST(request: Request) {
     return res;
   }
 
-  // Scope to make sure we don't have variable leaking
-  {
-    // Get the token from the KV store
-    const bearer = await prisma.credentials.findFirst({
-      where: { key: "basecamp_bearer" },
-    });
-    // Check to see if the token is still valid
-    const authRequest = await fetch(
-      "https://launchpad.37signals.com/authorization.json",
-      {
-        method: "GET",
-        headers: new Headers({
-          Authorization: "Bearer " + bearer,
-        }),
-      }
-    );
-    // We are not authorized
-    if (authRequest.status === 401) {
-      // Fetch the endpoint to get a new token
-      const refreshResponse = await fetch(
-        `https://launchpad.37signals.com/authorization/token?type=refresh&` +
-          `refresh_token=${process.env.BASECAMP_REFRESH_TOKEN}&` +
-          `client_id=${process.env.BASECAMP_CLIENT_ID}&` +
-          `redirect_uri=${process.env.BASECAMP_REDIRECT_URI}&` +
-          `client_secret=${process.env.BASECAMP_CLIENT_SECRET}`,
-        {
-          method: "POST",
-        }
-      );
-      // We have our new token now
-      const newToken = (await refreshResponse.json()) as {
-        access_token: string;
-        expires_in: number;
-      };
-      console.log(newToken);
-      // Put the new bearer token to the KV store
-      await prisma.credentials.update({
-        where: { key: "basecamp_bearer" },
-        data: { value: newToken.access_token },
-      });
-    }
-  }
-
-  // We need to make sure that we have the newest bearer token
-  const bearer = await prisma.credentials.findFirst({
-    where: { key: "basecamp_bearer" },
-  });
+  await checkAuth();
 
   // Get the SmartSheet API key from the KV Store
-  const sheetKey = process.env.SMARSHEET_API;
+  const sheetKey = process.env.SMARTSHEET_API;
 
   // Get the information the hook sends to us
   const eventInfo = (await request.json()) as Callback;
@@ -100,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // Get the column names for the sheet
-    const columnsDescriptor = (await (
+    const columns = (await (
       await fetch(
         "https://api.smartsheet.com/2.0/sheets/5206820445808516/columns",
         {
@@ -123,88 +54,71 @@ export async function POST(request: Request) {
     const eventManager = getRawColumn(
       "Event Manager Assigned",
       rowInfo,
-      columnsDescriptor
+      columns
     );
     if (!eventManager) {
       // Nobody is assigned, ignore it
       continue;
     }
 
-    console.log(rowInfo);
+    // Construct the title
+    const basecampTitle = `${getColumn(
+      "Event/Program Name",
+      rowInfo,
+      columns
+    )} - ${getColumn("Contact Name", rowInfo, columns)} - ${getColumn(
+      "Proposed Start Date",
+      rowInfo,
+      columns
+    )} through ${getColumn("Proposed End Date", rowInfo, columns)}`;
 
     // Construct the content
     const basecampContent = `
-    <h3>${getColumn("Event/Program Name", rowInfo, columnsDescriptor)}</h3>
+    <h3>${getColumn("Event/Program Name", rowInfo, columns)}</h3>
     <h3>Description:</h3>
-    <p>${getColumn("Event/Program Description", rowInfo, columnsDescriptor)}</p>
-    <p>This is a ${getColumn(
-      "Event Type",
-      rowInfo,
-      columnsDescriptor
-    )} requested by the ${getColumn(
-      "University Division",
-      rowInfo,
-      columnsDescriptor
-    )} division</p>
-    <p><b>University Budget Number:</b> ${getColumn(
-      "University Budget Number",
-      rowInfo,
-      columnsDescriptor
-    )}</p>
-    <p><b>Projected Attendance</b> ${getColumn(
-      "Projected Attendance",
-      rowInfo,
-      columnsDescriptor
-    )}</p>
+    <p>${getColumn("Event/Program Description", rowInfo, columns)}</p>
+    <p>
+      This is a ${getColumn("Event Type", rowInfo, columns)} 
+      requested by the ${getColumn("University Division", rowInfo, columns)} 
+      division
+    </p>
+    <p>
+      <b>University Budget Number:</b> 
+      ${getColumn("University Budget Number", rowInfo, columns)}
+    </p>
+    <p>
+      <b>Projected Attendance</b> 
+      ${getColumn("Projected Attendance", rowInfo, columns)}
+    </p>
     <h3>Dates and Times</h3>
     <ul>
-    <li><b>Start Date:</b> ${getColumn(
-      "Proposed Start Date",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
-    <li><b>Start Time:</b> ${getColumn(
-      "Start Time",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
-    <li><b>End Date:</b> ${getColumn(
-      "Proposed End Date",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
-    <li><b>End Time:</b> ${getColumn(
-      "End Time",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
+      <li>
+        <b>Start Date:</b> 
+        ${getColumn("Proposed Start Date", rowInfo, columns)}
+      </li>
+      <li><b>Start Time:</b> ${getColumn("Start Time", rowInfo, columns)}</li>
+      <li>
+        <b>End Date:</b> 
+        ${getColumn("Proposed End Date", rowInfo, columns)}
+      </li>
+      <li><b>End Time:</b> ${getColumn("End Time", rowInfo, columns)}</li>
     </ul>
     <h3>Spaces and Services</h3>
-    <p><b>Requested Space:</b> ${getColumn(
-      "Desired University Space",
-      rowInfo,
-      columnsDescriptor
-    )}</p>
-    <p><b>Requested Services:</b> ${getColumn(
-      "Desired Services",
-      rowInfo,
-      columnsDescriptor
-    )}</p>
+    <p>
+      <b>Requested Space:</b> 
+      ${getColumn("Desired University Space", rowInfo, columns)}
+    </p>
+    <p>
+      <b>Requested Services:</b>
+      ${getColumn("Desired Services", rowInfo, columns)}
+    </p>
     <p><b>Booked in EMS:</b> ${
-      getRawColumn("Booked in EMS?", rowInfo, columnsDescriptor) ? "YES" : "NO"
+      getRawColumn("Booked in EMS?", rowInfo, columns) ? "YES" : "NO"
     }</p>
     <h3>Contact Info</h3>
     <ul>
-    <li><b>Name:</b> ${getColumn(
-      "Contact Name",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
-    <li><b>Email:</b> ${getColumn(
-      "Contact Email",
-      rowInfo,
-      columnsDescriptor
-    )}</li>
+      <li><b>Name:</b> ${getColumn("Contact Name", rowInfo, columns)}</li>
+      <li><b>Email:</b> ${getColumn("Contact Email", rowInfo, columns)}</li>
     </ul>
     `;
 
@@ -218,46 +132,17 @@ export async function POST(request: Request) {
       Oliver: 42497941,
     };
 
-    const basecampURL =
-      "https://3.basecampapi.com/5395843/buckets/28387661/card_tables/lists/6394048191/cards.json";
-
-    // Perform the request to Basecamp
-    const basecampFetch = await fetch(basecampURL, {
-      method: "POST",
-      headers: {
-        Authorization: "Bearer " + bearer,
-        "Content-Type": "application/json",
-        Accept: "*/*",
-        // User agent is required by basecamp (not sure how strictly this is enforced)
-        "User-Agent": "Smartsheet to basecamp (alexandertaylor@cedarville.edu)",
-      },
-      body: JSON.stringify({
-        title: `${getColumn(
-          "Event/Program Name",
-          rowInfo,
-          columnsDescriptor
-        )} - ${getColumn(
-          "Contact Name",
-          rowInfo,
-          columnsDescriptor
-        )} - ${getColumn(
-          "Proposed Start Date",
-          rowInfo,
-          columnsDescriptor
-        )} through ${getColumn(
-          "Proposed End Date",
-          rowInfo,
-          columnsDescriptor
-        )}`,
-        content: basecampContent,
-        due_on: new Date(Date.now() + 1000 * 60 * 60 * 72),
-        assignee_ids: [
-          eventManagers[eventManager.value ?? eventManager.displayValue],
-        ],
-      }),
+    await createCard({
+      title: basecampTitle,
+      content: basecampContent,
+      due_on: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
+      projectId: "32112585", //"28387661",
+      subId: "5977136283", //"6394048191",
+      type: "card_table",
+      assignee_ids: [
+        eventManagers[eventManager.value ?? eventManager.displayValue],
+      ],
     });
-
-    console.log(basecampFetch.status);
   }
 
   return new Response("200/OK");
