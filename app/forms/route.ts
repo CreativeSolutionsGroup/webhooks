@@ -27,7 +27,8 @@ export async function POST(request: Request) {
       }
     );
     // We are not authorized
-    if (authRequest.status === 401) {
+    if (authRequest.status !== 200) {
+      console.log("Need to get a new token.");
       // Fetch the endpoint to get a new token
       const refreshResponse = await fetch(
         `https://launchpad.37signals.com/authorization/token?` +
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
   const response = await fetch(basecampURL, {
     method: "POST",
     headers: new Headers({
-      Authorization: "Bearer " + bearer,
+      Authorization: "Bearer " + bearer?.value,
       "Content-Type": "application/json",
       Accept: "*/*",
       // User agent is required by basecamp (not sure how strictly this is enforced)
@@ -98,8 +99,6 @@ export async function POST(request: Request) {
         : (formJson as BasecampCardData)
     ),
   });
-  // Log the response we get back
-  console.log("Received response " + response.status);
 
   return new Response("200/OK");
 }
