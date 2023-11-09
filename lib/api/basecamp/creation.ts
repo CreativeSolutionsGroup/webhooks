@@ -39,6 +39,8 @@ const createCard = async (info: RequestData) => {
       info.type === "list" ? toListData(info) : (info as BasecampCardData)
     ),
   });
+
+  return await response.json() as BasecampTask;
 };
 
 export { createCard, toListData };

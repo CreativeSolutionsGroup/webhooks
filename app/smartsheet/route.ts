@@ -1,5 +1,7 @@
 import { checkAuth, createCard } from "@/lib/api/basecamp";
+import { updateCard, updateCardComment } from "@/lib/api/basecamp/update";
 import { getColumn, getRawColumn } from "@/lib/api/smartsheet";
+import { prisma } from "@/lib/db";
 
 export async function POST(request: Request) {
   // The challenge is sent every 50 requests or so to make sure that the webhook is still alive
@@ -49,6 +51,11 @@ export async function POST(request: Request) {
         }
       )
     ).json()) as Row;
+
+    const smartsheetRow = await prisma.smartsheetRow.findFirst({
+      where: { smartsheetId: rowInfo.id.toString() },
+      include: { cells: true },
+    });
 
     // Get the person assigned to the event
     const eventManager = getRawColumn(
@@ -132,18 +139,88 @@ export async function POST(request: Request) {
       Oliver: 42497941,
     };
 
-    await createCard({
-      title: basecampTitle,
-      content: basecampContent,
-      due_on: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
-      projectId: "32112585", //"28387661",
-      subId: "5977136283", //"6394048191",
-      type: "card_table",
-      assignee_ids: [
-        eventManagers[eventManager.value ?? eventManager.displayValue],
-      ],
-    });
+    if (!smartsheetRow) {
+      const createdCard = await createCard({
+        title: basecampTitle,
+        content: basecampContent,
+        due_on: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
+        projectId: "32112585", //"28387661",
+        subId: "5977136283", //"6394048191",
+        type: "card_table",
+        assignee_ids: [
+          eventManagers[eventManager.value ?? eventManager.displayValue],
+        ],
+      });
+
+      await prisma.smartsheetRow.create({
+        data: {
+          accessLevel: rowInfo.accessLevel,
+          sheetId: rowInfo.sheetId.toString(),
+          createdAt: rowInfo.createdAt,
+          modifiedAt: rowInfo.modifiedAt,
+          rowNumber: rowInfo.rowNumber,
+          expanded: rowInfo.expanded,
+          version: rowInfo.version,
+          basecampId: createdCard.id.toString(),
+          smartsheetId: rowInfo.id.toString(),
+          cells: {
+            createMany: {
+              data: rowInfo.cells.map((v) => ({
+                columnId: v.columnId.toString(),
+                value: v.value?.toString(),
+                displayValue: v.value?.toString(),
+              })),
+            },
+          },
+        },
+      });
+    } else {
+      let changes = "";
+
+      rowInfo.cells.forEach(async (smartsheetCell) => {
+        const dbCell = smartsheetRow.cells.find(
+          (v) => v.columnId.toString() === smartsheetCell.columnId.toString()
+        );
+
+        if (dbCell && dbCell.value != smartsheetCell.value) {
+          changes +=
+            "<h4>" +
+            columns.data.find(
+              (v) => v.id.toString() === dbCell.columnId.toString()
+            )?.title +
+            ":</h4><p>" +
+            dbCell.value +
+            " -> " +
+            smartsheetCell.value +
+            "</p>";
+
+          await prisma.smartsheetCell.update({
+            where: { id: dbCell.id },
+            data: {
+              value: smartsheetCell.value.toString(),
+              displayValue: smartsheetCell.displayValue.toString(),
+            },
+          });
+        }
+      });
+
+      if (smartsheetRow.basecampId) {
+        updateCardComment("32112585", smartsheetRow.basecampId, changes);
+
+        updateCard({
+          title: basecampTitle,
+          content: basecampContent,
+          due_on: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
+          projectId: "32112585", //"28387661",
+          cardID: smartsheetRow.basecampId,
+          type: "card_table",
+          assignee_ids: [
+            eventManagers[eventManager.value ?? eventManager.displayValue],
+          ],
+        });
+      }
+    }
   }
 
-  return new Response("200/OK");
+  return Response.json({ message: "200/OK" }, { status: 200 });
 }

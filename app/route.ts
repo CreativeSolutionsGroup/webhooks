@@ -6,7 +6,7 @@ declare global {
       BASECAMP_REDIRECT_URI: string;
       BASECAMP_REFRESH_TOKEN: string;
       DATABASE_URL: string;
-      SMARTSHEET_API: string;
+      SMARTSHtEET_API: string;
     }
   }
 }
