@@ -1,6 +1,6 @@
 type Callback = {
-  scopeObjectId: number;
-  webhookId: number;
+  scopeObjectId: string;
+  webhookId: string;
   events: Array<CallbackEvent>;
   newWebhookStatus: string;
   nonce: string;
@@ -9,10 +9,10 @@ type Callback = {
 };
 
 type CallbackEvent = {
-  id: number;
-  columnId: number;
-  rowId: number;
-  userId: number;
+  id: string;
+  columnId: string;
+  rowId: string;
+  userId: string;
   objectType:
     | "attachment"
     | "cell"
@@ -27,7 +27,7 @@ type CallbackEvent = {
 };
 
 type CellDescriptor = {
-  id: number;
+  id: string;
   version: number;
   index: number;
   title: string;
@@ -46,16 +46,16 @@ type ColumnsList = {
 };
 
 type Cell = {
-  columnId: number;
+  columnId: string;
   value: string;
   displayValue: string;
 };
 
 type Row = {
-  id: number;
-  sheetId: number;
+  id: string;
+  sheetId: string;
   rowNumber: number;
-  siblingId: number;
+  siblingId: string;
   version: number;
   expanded: boolean;
   accessLevel: string;

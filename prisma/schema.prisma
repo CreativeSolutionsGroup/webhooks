@@ -14,3 +14,26 @@ model Credentials {
   key   String @id
   value String
 }
+
+model SmartsheetRow {
+  smartsheetId String           @id
+  basecampId   String?
+  sheetId      String
+  rowNumber    Int
+  siblingId    String?
+  version      Int
+  expanded     Boolean
+  accessLevel  String
+  createdAt    String
+  modifiedAt   String
+  cells        SmartsheetCell[]
+}
+
+model SmartsheetCell {
+  id              String         @id @default(cuid())
+  columnId        String
+  value           String?
+  displayValue    String?
+  SmartsheetRow   SmartsheetRow? @relation(fields: [smartsheetRowId], references: [smartsheetId])
+  smartsheetRowId String?
+}
