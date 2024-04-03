@@ -144,8 +144,8 @@ export async function POST(request: Request) {
         title: basecampTitle,
         content: basecampContent,
         due_on: new Date(Date.now() + 1000 * 60 * 60 * 72).toISOString(),
-        projectId: "32112585", //"28387661",
-        subId: "5977136283", //"6394048191",
+        projectId: "28387661",
+        subId: "6394048191",
         type: "card_table",
         assignee_ids: [
           eventManagers[eventManager.value ?? eventManager.displayValue],

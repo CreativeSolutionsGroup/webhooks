@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "rhel-openssl-1.0.x"]
 }
 
@@ -17,16 +14,16 @@ model Credentials {
 }
 
 model SmartsheetRow {
-  smartsheetId String           @id
-  basecampId   String?
   sheetId      String
-  rowNumber    Int
   siblingId    String?
   version      Int
   expanded     Boolean
   accessLevel  String
   createdAt    String
   modifiedAt   String
+  smartsheetId String           @id
+  basecampId   String?
+  rowNumber    Int
   cells        SmartsheetCell[]
 }
 
@@ -35,6 +32,6 @@ model SmartsheetCell {
   columnId        String
   value           String?
   displayValue    String?
-  SmartsheetRow   SmartsheetRow? @relation(fields: [smartsheetRowId], references: [smartsheetId])
   smartsheetRowId String?
+  SmartsheetRow   SmartsheetRow? @relation(fields: [smartsheetRowId], references: [smartsheetId])
 }
