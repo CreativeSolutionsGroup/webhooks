@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       formJson.due_on = nextWeek.toISOString().slice(0, 10);
     }
   
-    await createCard(formJson);
+    console.log(await createCard(formJson));
   
     return new Response("200/OK");
   } catch (e) {
