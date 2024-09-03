@@ -13,7 +13,7 @@ declare global {
 
 export async function GET(request: Request) {
   return Response.json({
-    routes: ["POST /forms", "POST /smartsheet"],
+    routes: ["POST /forms", "POST /smartsheet", "POST /people"],
     timestamp: new Date(Date.now()).toISOString(),
   });
 }

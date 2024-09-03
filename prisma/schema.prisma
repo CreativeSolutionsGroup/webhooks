@@ -13,6 +13,12 @@ model Credentials {
   value String
 }
 
+model AuthorizedUsers {
+  id    String @id @default(cuid())
+  email String
+  roles String
+}
+
 model SmartsheetRow {
   sheetId      String
   siblingId    String?
