@@ -19,12 +19,10 @@ function parseJWT(token: string) {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
 
-  const authorization = req.headers.get("authorization");
+  const authorization = req.headers.get("Authorization");
   if (authorization == null) return new Response(null, { status: 401 });
 
-  const authorized = !!(await prisma.authorizedUsers.findFirst({
-    where: { email: parseJWT(authorization.split(" ")[1]).email },
-  }));
+  const authorized = process.env.AUTH_TOKEN === authorization.split(" ")[1];
 
   if (!authorized) return new Response(null, { status: 403 });
 
