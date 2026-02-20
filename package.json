@@ -5,9 +5,8 @@
   "scripts": {
     "dev": "doppler run -- next dev",
     "build": "doppler run -- next build",
-    "start": "doppler run -- next start",
+    "start": "next start",
     "prodBuild": "next build",
-    "prodStart": "next start",
     "lint": "next lint",
     "studio": "doppler run -- prisma studio"
   },
